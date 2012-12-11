@@ -94,18 +94,20 @@
            (eq? name (fdC-name fd)))
          fds))
       
-(define (subst [what : ExprC] [for : symbol] [in : ExprC]) : ExprC
+(define (subst* [what : ExprC] [for : symbol] [in : ExprC]) : ExprC
         (type-case ExprC in
           [idC (id) (if (eq? id for) 
                         what 
                         in)]
-          [appC (f a) (appC f (subst what for a))]
+          [appC (f a) (appC f (subst* what for a))]
           [numC (n) in]
-          [plusC (l r) (plusC (subst what for l)
-                              (subst what for r))]
-          [multC (l r) (multC (subst what for l)
-                              (subst what for r))]))
+          [plusC (l r) (plusC (subst* what for l)
+                              (subst* what for r))]
+          [multC (l r) (multC (subst* what for l)
+                              (subst* what for r))]))
 
+(define (subst [what : number] [for : symbol] [in : ExprC]) : ExprC
+  (subst* (numC what) for in))
 
 
 (define (interp [a : ExprC] [fds : (listof FunDefC)]) : number
@@ -115,7 +117,7 @@
     [multC (l r) (* (interp l fds) (interp r fds))]
     [idC (s) (error 'interpreter "unbound identifier")]
     [appC (f a) (local ([define fd (get-fundef f fds)])
-                  (interp (subst a
+                  (interp (subst (interp a fds)
                                  (fdC-arg fd)
                                  (fdC-body fd))
                           fds))]))
@@ -127,9 +129,13 @@
        
 
 ;; interpreter test cases
-(define (evaluate [form : s-expression]) : number
+(define (evaluate* [form : s-expression]
+                   [fndefs : (listof FunDefC)]) : number
   (interp (desugar (parse form))
-          (list)))
+          fndefs))
+
+(define (evaluate [form : s-expression]) : number
+  (evaluate* form (list)))
 
 
 (test (evaluate '2) 2)
@@ -138,3 +144,14 @@
 (test (evaluate '(- (+ 1 2))) -3)
 (test (evaluate '(* 2 3)) 6)
 (test (evaluate '(* (+ (* 2 3) (+ 1 2)) 2)) 18)
+
+;; utility function to define FunDefC from a s-expression
+(define (def-fd [name : symbol] [arg : symbol] [e : s-expression]) : FunDefC
+  (fdC name arg (desugar (parse e))))
+
+(define f (def-fd 'f 'x '(* x 2)))
+(define z (def-fd 'z 'x '(+ x 3)))
+(test (evaluate* '(f 2) (list f)) 4)
+(test (evaluate* '(f (f 2)) (list f z)) 8)
+(test (evaluate* '(f (z 2)) (list f z)) 10)
+(test (evaluate* '(f (z 2)) (list z f)) 10)
