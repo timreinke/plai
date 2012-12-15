@@ -8,11 +8,11 @@
   [numC (n : number)]
   [plusC (l : ExprC) (r : ExprC)]
   [multC (l : ExprC) (r : ExprC)]
-  [funC (name : symbol) (arg : symbol) (body : ExprC)])
+  [lamC (arg : symbol) (body : ExprC)])
 
 (define-type Value
   [numV (n : number)]
-  [funV (name : symbol) (arg : symbol) (body : ExprC)])
+  [clsV (arg : symbol) (body : ExprC) (env : Env)])
 
 (define-type ExprS
   [numS (n : number)]
@@ -22,7 +22,7 @@
   [uminusS (e : ExprS)]
   [idS (id : symbol)]
   [appS (fun : ExprS) (expr : ExprS)]
-  [funS (name : symbol) (arg : symbol) (expr : ExprS)])
+  [lamS (arg : symbol) (expr : ExprS)])
 
 (define-type Binding
   [bind (name : symbol) (val : Value)])
@@ -90,7 +90,7 @@
                         (desugar e))]
     [idS (id) (idC id)]
     [appS (f a) (appC (desugar f) (desugar a))]
-    [funS (n a b) (funC n a (desugar b))]))
+    [lamS (a b) (lamC a (desugar b))]))
 
 (define (interp [a : ExprC] [env : Env] ) : Value
   (type-case ExprC a
@@ -99,11 +99,11 @@
     [multC (l r) (num* (interp l env) (interp r env))]
     [idC (n) (lookup n env)]
     [appC (f a) (local ([define fV (interp f env)])
-                  (interp (funV-body fV)
-                          (extend-env (bind (funV-arg fV)
+                  (interp (clsV-body fV)
+                          (extend-env (bind (clsV-arg fV)
                                             (interp a env))
-                                      mt-env)))]
-    [funC (n a b) (funV n a b)]))
+                                      (clsV-env fV))))]
+    [lamC (a b) (clsV a b env)]))
 
 ;; TODO add conditionals
 ;(define-type CondE
