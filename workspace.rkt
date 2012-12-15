@@ -24,18 +24,6 @@
   [plusC (l : ExprC) (r : ExprC)]
   [multC (l : ExprC) (r : ExprC)])
 
-
-;; to convert this to support signed 32-bit arithmetic,
-;; the numC type would have to wrap a 32-bit racket type
-;; (assuming one exists) and the '+ and '* functions would
-;; have to work on racket's 32-bit types in a 32-bit manner
-;; or other functions would have to be found.
-;; Alternatively, the numC type could remain a wrapper of
-;; the number type.  '+ and '* would then be redefined to
-;; simulate 32-bit arithmetic in terms of racket's number
-;; type.  However, this would shift type-error manifestiations
-;; further away from the input layer.
-
 (define-type ExprS
   [numS (n : number)]
   [plusS (l : ExprS) (r : ExprS)]
@@ -44,6 +32,29 @@
   [uminusS (e : ExprS)]
   [idS (id : symbol)]
   [appS (name : symbol) (expr : ExprS)])
+
+(define-type FunDefC
+  (fdC (name : symbol) (arg : symbol) (body : ExprC)))
+
+(define-type Binding
+  [bind (name : symbol) (val : number)])
+
+(define-type-alias Env (listof Binding))
+(define mt-env empty)
+(define extend-env cons)
+
+(define (lookup [for : symbol] [env : Env]) : number
+  (cond
+    [(empty? env) (error 'lookup "name not found")]
+    [else (cond
+            [(symbol=? for (bind-name (first env)))
+             (bind-val (first env))]
+            [else (lookup for (rest env))])]))
+
+(define (get-fundef [name : symbol] [fds : (listof FunDefC)]) : FunDefC
+  (findf (λ ([fd : FunDefC]) : boolean
+           (eq? name (fdC-name fd)))
+         fds))
 
 (define (parse [s : s-expression])
   (cond
@@ -84,42 +95,19 @@
                         (desugar e))]
     [idS (id) (idC id)]
     [appS (f a) (appC f (desugar a))]))
-
-
-(define-type FunDefC
-  (fdC (name : symbol) (arg : symbol) (body : ExprC)))
-
-(define (get-fundef [name : symbol] [fds : (listof FunDefC)]) : FunDefC
-  (findf (λ ([fd : FunDefC]) : boolean
-           (eq? name (fdC-name fd)))
-         fds))
-      
-(define (subst* [what : ExprC] [for : symbol] [in : ExprC]) : ExprC
-        (type-case ExprC in
-          [idC (id) (if (eq? id for) 
-                        what 
-                        in)]
-          [appC (f a) (appC f (subst* what for a))]
-          [numC (n) in]
-          [plusC (l r) (plusC (subst* what for l)
-                              (subst* what for r))]
-          [multC (l r) (multC (subst* what for l)
-                              (subst* what for r))]))
-
-(define (subst [what : number] [for : symbol] [in : ExprC]) : ExprC
-  (subst* (numC what) for in))
-
-
-(define (interp [a : ExprC] [fds : (listof FunDefC)]) : number
+     
+(define (interp [a : ExprC] [env : Env] [fds : (listof FunDefC)]) : number
   (type-case ExprC a
     [numC (n) n]
-    [plusC (l r) (+ (interp l fds) (interp r fds))]
-    [multC (l r) (* (interp l fds) (interp r fds))]
-    [idC (s) (error 'interpreter "unbound identifier")]
+    [plusC (l r) (+ (interp l env fds) (interp r env fds))]
+    [multC (l r) (* (interp l env fds) (interp r env fds))]
+    [idC (n) (lookup n env)]
     [appC (f a) (local ([define fd (get-fundef f fds)])
-                  (interp (subst (interp a fds)
-                                 (fdC-arg fd)
-                                 (fdC-body fd))
+                  (interp (fdC-body fd)
+                          (extend-env 
+                           (bind (fdC-arg fd)
+                                 (interp a env fds))
+                           mt-env)
                           fds))]))
 
 ;; TODO add conditionals
@@ -132,6 +120,7 @@
 (define (evaluate* [form : s-expression]
                    [fndefs : (listof FunDefC)]) : number
   (interp (desugar (parse form))
+          mt-env
           fndefs))
 
 (define (evaluate [form : s-expression]) : number
@@ -151,7 +140,11 @@
 
 (define f (def-fd 'f 'x '(* x 2)))
 (define z (def-fd 'z 'x '(+ x 3)))
+(define g (def-fd 'g 'x '(+ x y)))
+(define h (def-fd 'h 'y '(g 2)))
 (test (evaluate* '(f 2) (list f)) 4)
 (test (evaluate* '(f (f 2)) (list f z)) 8)
 (test (evaluate* '(f (z 2)) (list f z)) 10)
 (test (evaluate* '(f (z 2)) (list z f)) 10)
+(test (evaluate* '(f (z (+ (f 3) (z (* (f 3) 2))))) (list z f)) 48)
+(test/exn (evaluate* '(h 3) (list z g f h)) "name not found")
