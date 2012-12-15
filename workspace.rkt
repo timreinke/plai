@@ -2,27 +2,17 @@
 
 (require (typed-in racket/base [findf : (('a -> boolean) (listof 'a) -> 'a)]))
 
-(define-type MisspelledAnimal
-    [caml (humps : number)]
-    [yacc (height : number)])
-
-(define (good? [ma : MisspelledAnimal]) : boolean
-    (type-case MisspelledAnimal ma
-      [caml (humps) (>= humps 2)]
-      [yacc (height) (> height 2.1)]))
-
-
-(define hey : MisspelledAnimal (caml 2))
-
-(test (good? hey) #t)
-(test (good? (yacc 2)) #f)
-
 (define-type ExprC
   [idC (s : symbol)]
-  [appC (fun : symbol) (arg : ExprC)]
+  [appC (fun : ExprC) (arg : ExprC)]
   [numC (n : number)]
   [plusC (l : ExprC) (r : ExprC)]
-  [multC (l : ExprC) (r : ExprC)])
+  [multC (l : ExprC) (r : ExprC)]
+  [funC (name : symbol) (arg : symbol) (body : ExprC)])
+
+(define-type Value
+  [numV (n : number)]
+  [funV (name : symbol) (arg : symbol) (body : ExprC)])
 
 (define-type ExprS
   [numS (n : number)]
@@ -31,19 +21,17 @@
   [multS (l : ExprS) (r : ExprS)]
   [uminusS (e : ExprS)]
   [idS (id : symbol)]
-  [appS (name : symbol) (expr : ExprS)])
-
-(define-type FunDefC
-  (fdC (name : symbol) (arg : symbol) (body : ExprC)))
+  [appS (fun : ExprS) (expr : ExprS)]
+  [funS (name : symbol) (arg : symbol) (expr : ExprS)])
 
 (define-type Binding
-  [bind (name : symbol) (val : number)])
+  [bind (name : symbol) (val : Value)])
 
 (define-type-alias Env (listof Binding))
 (define mt-env empty)
 (define extend-env cons)
 
-(define (lookup [for : symbol] [env : Env]) : number
+(define (lookup [for : symbol] [env : Env]) : Value
   (cond
     [(empty? env) (error 'lookup "name not found")]
     [else (cond
@@ -51,12 +39,7 @@
              (bind-val (first env))]
             [else (lookup for (rest env))])]))
 
-(define (get-fundef [name : symbol] [fds : (listof FunDefC)]) : FunDefC
-  (findf (λ ([fd : FunDefC]) : boolean
-           (eq? name (fdC-name fd)))
-         fds))
-
-(define (parse [s : s-expression])
+(define (parse [s : s-expression]) : ExprS
   (cond
     [(s-exp-number? s) (numS (s-exp->number s))]
     [(s-exp-symbol? s) (idS (s-exp->symbol s))]
@@ -73,12 +56,24 @@
            ;; in the function application position).  
            ;; at this point, only functions of one argument are
            ;; supported
-           [else (appS (s-exp->symbol (first s1))
+           [else (appS (parse (first s1))
                        (parse (second s1)))]))]))
 
 
 (test (parse '(+ (* 1 2) (+ 2 3)))
       (plusS (multS (numS 1) (numS 2)) (plusS (numS 2) (numS 3))))
+
+
+(define (lift-op [op : (number number -> number)]) : (Value Value -> Value)
+  (λ ([l : Value] [r : Value]) : Value
+    (cond
+      [(and (numV? l) (numV? r))
+       (numV (op (numV-n l) (numV-n r)))]
+      [else
+       (error 'num+ "non-number argument")])))
+
+(define num+ (lift-op +))
+(define num* (lift-op *))
 
 
 (define (desugar [as : ExprS]) : ExprC
@@ -94,21 +89,21 @@
     [uminusS (e) (multC (numC -1)
                         (desugar e))]
     [idS (id) (idC id)]
-    [appS (f a) (appC f (desugar a))]))
-     
-(define (interp [a : ExprC] [env : Env] [fds : (listof FunDefC)]) : number
+    [appS (f a) (appC (desugar f) (desugar a))]
+    [funS (n a b) (funC n a (desugar b))]))
+
+(define (interp [a : ExprC] [env : Env] ) : Value
   (type-case ExprC a
-    [numC (n) n]
-    [plusC (l r) (+ (interp l env fds) (interp r env fds))]
-    [multC (l r) (* (interp l env fds) (interp r env fds))]
+    [numC (n) (numV n)]
+    [plusC (l r) (num+ (interp l env) (interp r env))]
+    [multC (l r) (num* (interp l env) (interp r env))]
     [idC (n) (lookup n env)]
-    [appC (f a) (local ([define fd (get-fundef f fds)])
-                  (interp (fdC-body fd)
-                          (extend-env 
-                           (bind (fdC-arg fd)
-                                 (interp a env fds))
-                           mt-env)
-                          fds))]))
+    [appC (f a) (local ([define fV (interp f env)])
+                  (interp (funV-body fV)
+                          (extend-env (bind (funV-arg fV)
+                                            (interp a env))
+                                      mt-env)))]
+    [funC (n a b) (funV n a b)]))
 
 ;; TODO add conditionals
 ;(define-type CondE
@@ -117,14 +112,12 @@
        
 
 ;; interpreter test cases
-(define (evaluate* [form : s-expression]
-                   [fndefs : (listof FunDefC)]) : number
-  (interp (desugar (parse form))
-          mt-env
-          fndefs))
+(define (evaluate* [form : s-expression]) : number
+  (numV-n (interp (desugar (parse form))
+          mt-env)))
 
 (define (evaluate [form : s-expression]) : number
-  (evaluate* form (list)))
+  (evaluate* form))
 
 
 (test (evaluate '2) 2)
@@ -134,17 +127,13 @@
 (test (evaluate '(* 2 3)) 6)
 (test (evaluate '(* (+ (* 2 3) (+ 1 2)) 2)) 18)
 
-;; utility function to define FunDefC from a s-expression
-(define (def-fd [name : symbol] [arg : symbol] [e : s-expression]) : FunDefC
-  (fdC name arg (desugar (parse e))))
-
-(define f (def-fd 'f 'x '(* x 2)))
-(define z (def-fd 'z 'x '(+ x 3)))
-(define g (def-fd 'g 'x '(+ x y)))
-(define h (def-fd 'h 'y '(g 2)))
-(test (evaluate* '(f 2) (list f)) 4)
-(test (evaluate* '(f (f 2)) (list f z)) 8)
-(test (evaluate* '(f (z 2)) (list f z)) 10)
-(test (evaluate* '(f (z 2)) (list z f)) 10)
-(test (evaluate* '(f (z (+ (f 3) (z (* (f 3) 2))))) (list z f)) 48)
-(test/exn (evaluate* '(h 3) (list z g f h)) "name not found")
+;(define f (def-fd 'f 'x '(* x 2)))
+;(define z (def-fd 'z 'x '(+ x 3)))
+;(define g (def-fd 'g 'x '(+ x y)))
+;(define h (def-fd 'h 'y '(g 2)))
+;(test (evaluate* '(f 2) (list f)) 4)
+;(test (evaluate* '(f (f 2)) (list f z)) 8)
+;(test (evaluate* '(f (z 2)) (list f z)) 10)
+;(test (evaluate* '(f (z 2)) (list z f)) 10)
+;(test (evaluate* '(f (z (+ (f 3) (z (* (f 3) 2))))) (list z f)) 48)
+;(test/exn (evaluate* '(h 3) (list z g f h)) "name not found")
