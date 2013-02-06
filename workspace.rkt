@@ -1,18 +1,23 @@
 #lang plai-typed
 
-(require (typed-in racket/base [findf : (('a -> boolean) (listof 'a) -> 'a)]))
+(require 
+ (typed-in racket/base [findf : (('a -> boolean) (listof 'a) -> 'a)])
+ (rename-in 
+  (typed-in racket/base [foldl : (('a 'b 'c -> 'c) 'c (listof 'a) (listof 'b) -> 'c)])
+  [foldl foldl2]))
+                                                              
 
 (define-type ExprC
   [idC (s : symbol)]
-  [appC (fun : ExprC) (arg : ExprC)]
   [numC (n : number)]
   [plusC (l : ExprC) (r : ExprC)]
   [multC (l : ExprC) (r : ExprC)]
-  [lamC (arg : symbol) (body : ExprC)])
+  [appC (fun : ExprC) (args : (listof ExprC))]
+  [lamC (args : (listof symbol)) (body : ExprC)])
 
 (define-type Value
   [numV (n : number)]
-  [clsV (arg : symbol) (body : ExprC) (env : Env)])
+  [clsV (names : (listof symbol)) (body : ExprC) (env : Env)])
 
 (define-type ExprS
   [numS (n : number)]
@@ -21,8 +26,8 @@
   [multS (l : ExprS) (r : ExprS)]
   [uminusS (e : ExprS)]
   [idS (id : symbol)]
-  [appS (fun : ExprS) (expr : ExprS)]
-  [lamS (arg : symbol) (expr : ExprS)])
+  [appS (fun : ExprS) (exprs : (listof ExprS))]
+  [lamS (args : (listof symbol)) (expr : ExprS)])
 
 (define-type Binding
   [bind (name : symbol) (val : Value)])
@@ -43,21 +48,19 @@
   (cond
     [(s-exp-number? s) (numS (s-exp->number s))]
     [(s-exp-symbol? s) (idS (s-exp->symbol s))]
-    [(s-exp-list? s) 
+    [(s-exp-list? s)
        (let ([s1 (s-exp->list s)])
-         (case (s-exp->symbol (first s1))
-           ['+ (plusS (parse (second s1)) (parse (third s1)))]
-           ['* (multS (parse (second s1)) (parse (third s1)))]
-           ['- (if (= (length s1) 2) (uminusS (parse (second s1)))
-                   (bminusS (parse (second s1)) (parse (third s1))))]
-           ;; otherwise, just assume it's function application
-           ;; if it's not, it's not a valid program anyway (though
-           ;; a friendly parser may catch the error here e.g. a number
-           ;; in the function application position).  
-           ;; at this point, only functions of one argument are
-           ;; supported
-           [else (appS (parse (first s1))
-                       (parse (second s1)))]))]))
+         (cond 
+           [(s-exp-list? (first s1)) (appS (parse (first s1)) (map parse (rest s1)))] 
+           [else  
+            (case (s-exp->symbol (first s1))
+              ['+ (plusS (parse (second s1)) (parse (third s1)))]
+              ['* (multS (parse (second s1)) (parse (third s1)))]
+              ['- (if (= (length s1) 2) (uminusS (parse (second s1)))
+                      (bminusS (parse (second s1)) (parse (third s1))))]
+              ['λ (lamS (map s-exp->symbol (s-exp->list (second s1))) (parse (third s1)))]
+              [else (appS (parse (first s1))
+                          (map parse (rest s1)))])]))]))
 
 
 (test (parse '(+ (* 1 2) (+ 2 3)))
@@ -89,7 +92,7 @@
     [uminusS (e) (multC (numC -1)
                         (desugar e))]
     [idS (id) (idC id)]
-    [appS (f a) (appC (desugar f) (desugar a))]
+    [appS (f a) (appC (desugar f) (map desugar a))]
     [lamS (a b) (lamC a (desugar b))]))
 
 (define (interp [a : ExprC] [env : Env] ) : Value
@@ -98,12 +101,17 @@
     [plusC (l r) (num+ (interp l env) (interp r env))]
     [multC (l r) (num* (interp l env) (interp r env))]
     [idC (n) (lookup n env)]
-    [appC (f a) (local ([define fV (interp f env)])
-                  (interp (clsV-body fV)
-                          (extend-env (bind (clsV-arg fV)
-                                            (interp a env))
-                                      (clsV-env fV))))]
-    [lamC (a b) (clsV a b env)]))
+    [appC (f args) (local ([define fV (interp f env)])
+                     (interp 
+                      (clsV-body fV)
+                      (foldl2 (λ ([name : symbol] [expr : ExprC] [env : Env]) : Env
+                                (extend-env (bind name
+                                                  (interp expr env))
+                                            env))
+                              (clsV-env fV)
+                              (clsV-names fV)
+                              args)))]
+    [lamC (args b) (clsV args b env)]))
 
 ;; TODO add conditionals
 ;(define-type CondE
