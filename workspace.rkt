@@ -19,6 +19,9 @@
   [numV (n : number)]
   [clsV (names : (listof symbol)) (body : ExprC) (env : Env)])
 
+(define-type BindingS
+  [bindingS (id : symbol) (expr : ExprS)])
+
 (define-type ExprS
   [numS (n : number)]
   [plusS (l : ExprS) (r : ExprS)]
@@ -26,7 +29,7 @@
   [multS (l : ExprS) (r : ExprS)]
   [uminusS (e : ExprS)]
   [idS (id : symbol)]
-  [letS (name : symbol) (value : ExprS) (body : ExprS)]
+  [letS (bindings : (listof BindingS)) (body : ExprS)]
   [appS (fun : ExprS) (exprs : (listof ExprS))]
   [lamS (args : (listof symbol)) (expr : ExprS)])
 
@@ -45,14 +48,15 @@
              (bind-val (first env))]
             [else (lookup for (rest env))])]))
 
-;(define (make-sugar-bindings [binding-exprs : (listof (listof s-expression))]) : (listof ExprS)
-;  (map 
-;   (λ ([binding-form : (listof s-expression)]) : ExprS
-;     (if (s-exp-symbol? (first finding-form))
-;         (let [name (first s-expression)]
-;           (if )
-;         (error 'let "non-symbol in name position of binding expression")
-;   binding-exprs)
+(define (parse-binding-pairs [bindings : (listof s-expression)]) : (listof BindingS)
+  (map
+   (λ ([binding-form : s-expression]) : BindingS
+     (if (s-exp-list? binding-form)
+         (let ([binding-form* (s-exp->list binding-form)])
+           (bindingS (s-exp->symbol (first binding-form*))
+                     (parse (second binding-form*))))
+         (error 'let "invalid binding form. expected symbol, expr pair")))
+   bindings))
 
 (define (parse [s : s-expression]) : ExprS
   (cond
@@ -69,9 +73,8 @@
               ['- (if (= (length s1) 2) (uminusS (parse (second s1)))
                       (bminusS (parse (second s1)) (parse (third s1))))]
               ['let (if (s-exp-list? (second s1))
-                        (let ([binding-pair (s-exp->list (second s1))])
-                          (letS (s-exp->symbol (first binding-pair))
-                                (parse (second binding-pair))
+                        (let ([binding-pairs (s-exp->list (second s1))])
+                          (letS (parse-binding-pairs binding-pairs)
                                 (parse (third s1))))
                         (error 'let "invalid binding syntax. expected list"))]
               ['λ (lamS (map s-exp->symbol (s-exp->list (second s1))) (parse (third s1)))]
@@ -110,9 +113,11 @@
     [idS (id) (idC id)]
     [appS (f a) (appC (desugar f) (map desugar a))]
     [lamS (a b) (lamC a (desugar b))]
-    [letS (id val body) (desugar 
-                         (appS (lamS (list id) body)
-                               (list val)))]))
+    [letS (bindings body) 
+          (let ([names (map bindingS-id bindings)]
+                [exprs (map bindingS-expr bindings)])
+            (desugar (appS (lamS names body)
+                           exprs)))]))
 
 (define (interp [a : ExprC] [env : Env] ) : Value
   (type-case ExprC a
@@ -157,7 +162,11 @@
 (test (evaluate* '(+ 10 (f 10 20)) (extend-env (bind 'f (evaluate* '(λ (x y) (- x y)) mt-env))
                                               mt-env))
       (numV 0))
-(test (evaluate '(let (a 5) a)) 5)
+(test (evaluate '(let ((a 5)) a)) 5)
+(test (evaluate '(let ((a 5)
+                       (b (λ (x) (+ x x))))
+                   (b a)))
+      10)
 
 ;(define f (def-fd 'f 'x '(* x 2)))
 ;(define z (def-fd 'z 'x '(+ x 3)))
