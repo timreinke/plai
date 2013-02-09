@@ -26,6 +26,7 @@
   [multS (l : ExprS) (r : ExprS)]
   [uminusS (e : ExprS)]
   [idS (id : symbol)]
+  [letS (name : symbol) (value : ExprS) (body : ExprS)]
   [appS (fun : ExprS) (exprs : (listof ExprS))]
   [lamS (args : (listof symbol)) (expr : ExprS)])
 
@@ -44,6 +45,15 @@
              (bind-val (first env))]
             [else (lookup for (rest env))])]))
 
+;(define (make-sugar-bindings [binding-exprs : (listof (listof s-expression))]) : (listof ExprS)
+;  (map 
+;   (λ ([binding-form : (listof s-expression)]) : ExprS
+;     (if (s-exp-symbol? (first finding-form))
+;         (let [name (first s-expression)]
+;           (if )
+;         (error 'let "non-symbol in name position of binding expression")
+;   binding-exprs)
+
 (define (parse [s : s-expression]) : ExprS
   (cond
     [(s-exp-number? s) (numS (s-exp->number s))]
@@ -58,6 +68,12 @@
               ['* (multS (parse (second s1)) (parse (third s1)))]
               ['- (if (= (length s1) 2) (uminusS (parse (second s1)))
                       (bminusS (parse (second s1)) (parse (third s1))))]
+              ['let (if (s-exp-list? (second s1))
+                        (let ([binding-pair (s-exp->list (second s1))])
+                          (letS (s-exp->symbol (first binding-pair))
+                                (parse (second binding-pair))
+                                (parse (third s1))))
+                        (error 'let "invalid binding syntax. expected list"))]
               ['λ (lamS (map s-exp->symbol (s-exp->list (second s1))) (parse (third s1)))]
               [else (appS (parse (first s1))
                           (map parse (rest s1)))])]))]))
@@ -93,7 +109,10 @@
                         (desugar e))]
     [idS (id) (idC id)]
     [appS (f a) (appC (desugar f) (map desugar a))]
-    [lamS (a b) (lamC a (desugar b))]))
+    [lamS (a b) (lamC a (desugar b))]
+    [letS (id val body) (desugar 
+                         (appS (lamS (list id) body)
+                               (list val)))]))
 
 (define (interp [a : ExprC] [env : Env] ) : Value
   (type-case ExprC a
@@ -120,12 +139,12 @@
        
 
 ;; interpreter test cases
-(define (evaluate* [form : s-expression]) : number
-  (numV-n (interp (desugar (parse form))
-          mt-env)))
+(define (evaluate* [form : s-expression] [env : Env]) : Value
+  (interp (desugar (parse form))
+          env))
 
 (define (evaluate [form : s-expression]) : number
-  (evaluate* form))
+  (numV-n (evaluate* form mt-env)))
 
 
 (test (evaluate '2) 2)
@@ -134,6 +153,11 @@
 (test (evaluate '(- (+ 1 2))) -3)
 (test (evaluate '(* 2 3)) 6)
 (test (evaluate '(* (+ (* 2 3) (+ 1 2)) 2)) 18)
+(test (evaluate '(+ 10 ((λ (x y) (- x y)) 10 20))) 0) 
+(test (evaluate* '(+ 10 (f 10 20)) (extend-env (bind 'f (evaluate* '(λ (x y) (- x y)) mt-env))
+                                              mt-env))
+      (numV 0))
+(test (evaluate '(let (a 5) a)) 5)
 
 ;(define f (def-fd 'f 'x '(* x 2)))
 ;(define z (def-fd 'z 'x '(+ x 3)))
