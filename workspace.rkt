@@ -18,11 +18,16 @@
   [plusC (l : ExprC) (r : ExprC)]
   [multC (l : ExprC) (r : ExprC)]
   [appC (fun : ExprC) (args : (listof ExprC))]
-  [lamC (args : (listof symbol)) (body : ExprC)])
+  [lamC (args : (listof symbol)) (body : ExprC)]
+  [boxC (arg : ExprC)]
+  [unboxC (arg : ExprC)]
+  [setboxC (b : ExprC) (v : ExprC)]
+  [seqC (b1 : ExprC) (b2 : ExprC)])
 
 (define-type Value
   [numV (n : number)]
-  [clsV (names : (listof symbol)) (body : ExprC) (env : Env)])
+  [clsV (names : (listof symbol)) (body : ExprC) (env : Env)]
+  [boxV (v : Value)])
 
 (define-type BindingS
   [bindingS (id : symbol) (expr : ExprS)])
@@ -140,14 +145,34 @@
                               (clsV-env fV)
                               (clsV-names fV)
                               args)))]
-    [lamC (args b) (clsV args b env)]))
+    [lamC (args b) (clsV args b env)]
+    
+    [boxC (val-expr) (boxV (interp val-expr env))]
+    [unboxC (box-expr) (let ([box (interp box-expr env)])
+                            (type-case Value box
+                              [numV (_) (error 'unbox "Can't unbox a number")]
+                              [clsV (a b c) (error 'unbox "Can't unbox a closure")]
+                              [boxV (val) val]))]
+    [setboxC (box-expr val-expr) (numV 2)]
+    [seqC (a b) (numV 2)]))
+    
+(test (interp (boxC (numC 2)) mt-env)
+      (boxV (numV 2)))
+(test (interp (unboxC (boxC (numC 2))) mt-env)
+      (numV 2))
+(test/exn (interp (unboxC (numC 2)) mt-env)
+          "Can't unbox")
 
-;; TODO add conditionals
-;(define-type CondE
-;  [condE (test-exp : ExprS) (
-; (test ...)
-       
-
+(define test-expr
+  (appC 
+   (lamC (list 'b)
+         (seqC
+          (seqC
+           (setboxC (idC 'b) (plusC (numC 1) (unboxC (idC 'b))))
+           (setboxC (idC 'b) (plusC (numC 1) (unboxC (idC 'b)))))
+          (unboxC (idC 'b))))
+   (list (boxC (numC 0)))))
+  
 ;; interpreter test cases
 (define (evaluate* [form : s-expression] [env : Env]) : Value
   (interp (desugar (parse form))
