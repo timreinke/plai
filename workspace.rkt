@@ -1,5 +1,10 @@
 #lang plai-typed
 
+;; TODO
+;; - warn on incorrect number of arguments to all expressions e.g. now (+ 1 2 3) => 3
+;; - add conditionals
+;; - more tests
+
 (require 
  (typed-in racket/base [findf : (('a -> boolean) (listof 'a) -> 'a)])
  (rename-in 
