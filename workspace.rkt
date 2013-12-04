@@ -112,14 +112,17 @@
        
 
 ;; interpreter test cases
-(define (evaluate* [form : s-expression]) : number
+(define (evaluate* [form : s-expression] [env : Env]) : number
   (numV-n (interp (desugar (parse form))
-          mt-env)))
+          env)))
 
 (define (evaluate [form : s-expression]) : number
-  (evaluate* form))
+  (evaluate* form mt-env))
 
 
+;; Tests
+
+;;; Basic Arithmetic (incl. parsing)
 (test (evaluate '2) 2)
 (test (evaluate '(- 1 2)) -1)
 (test (evaluate '(+ 1 2)) 3)
@@ -127,13 +130,30 @@
 (test (evaluate '(* 2 3)) 6)
 (test (evaluate '(* (+ (* 2 3) (+ 1 2)) 2)) 18)
 
-;(define f (def-fd 'f 'x '(* x 2)))
-;(define z (def-fd 'z 'x '(+ x 3)))
-;(define g (def-fd 'g 'x '(+ x y)))
-;(define h (def-fd 'h 'y '(g 2)))
+
+;;; Lambda expressions (core only, no sugar, no parse)
+(test (interp (lamC 'x (plusC
+                        (idC 'x)
+                        (numC 1)))
+              mt-env)
+      (clsV 'x (plusC (idC 'x) (numC 1)) mt-env))
+
+;(define (def-λ [arg : symbol] [e : s-expression]) : ExprC
+;  (lamC arg (desugar (parse e))))
+;
+;(define f (def-λ 'x '(* x 2)))
+;(define z (def-λ 'x '(+ x 3)))
+;(define g (def-λ 'x '(+ x y)))
+;(define h (def-λ 'y '(g 2)))
+;
+;(define env-with-fns (extend-env 
+;                      mt-env)
+;
 ;(test (evaluate* '(f 2) (list f)) 4)
 ;(test (evaluate* '(f (f 2)) (list f z)) 8)
 ;(test (evaluate* '(f (z 2)) (list f z)) 10)
 ;(test (evaluate* '(f (z 2)) (list z f)) 10)
-;(test (evaluate* '(f (z (+ (f 3) (z (* (f 3) 2))))) (list z f)) 48)
+;(test (evaluate* '(f (z (+ (f 3) (z (* (f 3) 2)))))
+;                 
+;                              48)
 ;(test/exn (evaluate* '(h 3) (list z g f h)) "name not found")
