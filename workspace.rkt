@@ -56,12 +56,18 @@
            ;; in the function application position).  
            ;; at this point, only functions of one argument are
            ;; supported
+           ['λ (lamS (s-exp->symbol (second s1))
+                     (parse (third s1)))]
+                                     
            [else (appS (parse (first s1))
                        (parse (second s1)))]))]))
 
 
 (test (parse '(+ (* 1 2) (+ 2 3)))
       (plusS (multS (numS 1) (numS 2)) (plusS (numS 2) (numS 3))))
+
+(test (parse '(λ x (+ 1 x)))
+      (lamS 'x (plusS (numS 1) (idS 'x))))
 
 
 (define (lift-op [op : (number number -> number)]) : (Value Value -> Value)
