@@ -62,10 +62,24 @@
            [else (appS (parse (first s1))
                        (parse (second s1)))]))]))
 
+;; Parsing Tests
 
+;;; Numbers
+(test (parse '2)
+      (numS 2))
+
+;;; Ids
+(test (parse 'x)
+      (idS 'x))
+
+;;; Math
 (test (parse '(+ (* 1 2) (+ 2 3)))
       (plusS (multS (numS 1) (numS 2)) (plusS (numS 2) (numS 3))))
 
+(test (parse '(+ 1 x))
+      (plusS (numS 1) (idS 'x)))
+
+;;; Lambda
 (test (parse '(λ x (+ 1 x)))
       (lamS 'x (plusS (numS 1) (idS 'x))))
 
