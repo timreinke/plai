@@ -160,8 +160,7 @@
 
 
 ;;; Lambda expressions (core only, no sugar, no parse)
-
-;; TODO add lambda parsing
+;;;; raw interp
 (test (interp (lamC 'x (plusC
                         (idC 'x)
                         (numC 1)))
@@ -175,6 +174,9 @@
               mt-env)
       (numV 6))
 
+;;;; the whole thing
+(test (evaluate '(λ x (+ 1 x))) (clsV 'x (plusC (numC 1) (idC 'x)) mt-env)) 
+(test (evaluate '((λ x (+ 1 x)) 5)) (numV 6))
 
 ;(define (def-λ [arg : symbol] [e : s-expression]) : ExprC
 ;  (lamC arg (desugar (parse e))))
