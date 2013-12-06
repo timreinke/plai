@@ -62,7 +62,8 @@
                
                [else (appS (parse (first s1))
                            (parse (second s1)))])
-             (appS (parse (first s1) (second s1)))))]))
+             (appS (parse (first s1))
+                   (parse (second s1)))))]))
 
 ;; Parsing Tests
 
@@ -84,6 +85,11 @@
 ;;; Lambda
 (test (parse '(λ x (+ 1 x)))
       (lamS 'x (plusS (numS 1) (idS 'x))))
+
+(test (parse '((λ x (+ 1 x))
+              5))
+      (appS (lamS 'x (plusS (numS 1) (idS 'x)))
+            (numS 5)))
 
 
 (define (lift-op [op : (number number -> number)]) : (Value Value -> Value)
@@ -134,23 +140,23 @@
        
 
 ;; interpreter test cases
-(define (evaluate* [form : s-expression] [env : Env]) : number
-  (numV-n (interp (desugar (parse form))
-          env)))
+(define (evaluate* [form : s-expression] [env : Env]) : Value
+  (interp (desugar (parse form))
+          env))
 
-(define (evaluate [form : s-expression]) : number
+(define (evaluate [form : s-expression]) : Value
   (evaluate* form mt-env))
 
 
 ;; Tests
 
 ;;; Basic Arithmetic (incl. parsing)
-(test (evaluate '2) 2)
-(test (evaluate '(- 1 2)) -1)
-(test (evaluate '(+ 1 2)) 3)
-(test (evaluate '(- (+ 1 2))) -3)
-(test (evaluate '(* 2 3)) 6)
-(test (evaluate '(* (+ (* 2 3) (+ 1 2)) 2)) 18)
+(test (evaluate '2) (numV 2))
+(test (evaluate '(- 1 2)) (numV -1))
+(test (evaluate '(+ 1 2)) (numV 3))
+(test (evaluate '(- (+ 1 2))) (numV -3))
+(test (evaluate '(* 2 3)) (numV 6))
+(test (evaluate '(* (+ (* 2 3) (+ 1 2)) 2)) (numV 18))
 
 
 ;;; Lambda expressions (core only, no sugar, no parse)
