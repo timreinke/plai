@@ -177,6 +177,9 @@
 ;;;; the whole thing
 (test (evaluate '(λ x (+ 1 x))) (clsV 'x (plusC (numC 1) (idC 'x)) mt-env)) 
 (test (evaluate '((λ x (+ 1 x)) 5)) (numV 6))
+(test (evaluate* '(f 5) (extend-env (bind 'f (evaluate '(λ x (+ 1 x))))
+                                    mt-env))
+      (numV 6))
 
 ;(define (def-λ [arg : symbol] [e : s-expression]) : ExprC
 ;  (lamC arg (desugar (parse e))))
