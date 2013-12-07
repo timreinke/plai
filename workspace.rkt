@@ -55,15 +55,9 @@
                ['* (multS (parse (second s1)) (parse (third s1)))]
                ['- (if (= (length s1) 2) (uminusS (parse (second s1)))
                        (bminusS (parse (second s1)) (parse (third s1))))]
-               ;; otherwise, just assume it's function application
-               ;; if it's not, it's not a valid program anyway (though
-               ;; a friendly parser may catch the error here e.g. a number
-               ;; in the function application position).  
-               ;; at this point, only functions of one argument are
-               ;; supported
                ['λ (lamS (s-exp->symbol (second s1))
                          (parse (third s1)))]
-               
+               ;; TODO seems weird to need the same appS expression below.. how to refactor?
                [else (appS (parse (first s1))
                            (parse (second s1)))])
              (appS (parse (first s1))
