@@ -2,6 +2,10 @@
 
 (require (typed-in racket/base [findf : (('a -> boolean) (listof 'a) -> 'a)]))
 
+;; Todo
+;;; - think about error handling, maybe put it in a few places 
+;;;;  - don't really want to go crazy as this is for learning
+
 (define-type ExprC
   [idC (s : symbol)]
   [appC (fun : ExprC) (arg : ExprC)]
