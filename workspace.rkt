@@ -49,7 +49,7 @@
     [(s-exp-symbol? s) (idS (s-exp->symbol s))]
     [(s-exp-list? s) 
        (let ([s1 (s-exp->list s)])
-         (if (s-exp-symbol? (first s1))
+         (if (s-exp-symbol? (first s1)) ;; (if (application? s1) <handle-builtins> <handle-application>)
              (case (s-exp->symbol (first s1))
                ['+ (plusS (parse (second s1)) (parse (third s1)))]
                ['* (multS (parse (second s1)) (parse (third s1)))]
