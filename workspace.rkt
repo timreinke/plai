@@ -125,10 +125,14 @@
     [multC (l r) (num* (interp l env) (interp r env))]
     [idC (n) (lookup n env)]
     [appC (f a) (local ([define fV (interp f env)])
-                  (interp (clsV-body fV)
-                          (extend-env (bind (clsV-arg fV)
-                                            (interp a env))
-                                      (clsV-env fV))))]
+                  ;; should check here that fV is actually a function
+                  (if (not (clsV? fV))
+                      (error 'interp (string-append (to-string fV) 
+                                                    " is not a function value"))
+                      (interp (clsV-body fV)
+                              (extend-env (bind (clsV-arg fV)
+                                                (interp a env))
+                                          (clsV-env fV)))))]
     [lamC (a b) (clsV a b env)]))
 
 ;; TODO add conditionals
