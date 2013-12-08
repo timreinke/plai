@@ -179,6 +179,15 @@
                                     mt-env))
       (numV 6))
 
+;; test substituion. 
+(test (evaluate '(((λ f 
+                     (λ x 
+                       (f 10)))
+                   (λ x 
+                     (+ x 1))) 
+                  5))
+      (numV 11))
+
 ;(define (def-λ [arg : symbol] [e : s-expression]) : ExprC
 ;  (lamC arg (desugar (parse e))))
 ;
