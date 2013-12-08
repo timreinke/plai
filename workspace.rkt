@@ -188,6 +188,10 @@
                   5))
       (numV 11))
 
+;; the book suggests the following should error:
+;;; (evaluate '(λ x1 ((λ y1 (+ x y1)) 10)))
+;; I agree. Did my interpreter diverge too far from the book?
+
 ;(define (def-λ [arg : symbol] [e : s-expression]) : ExprC
 ;  (lamC arg (desugar (parse e))))
 ;
