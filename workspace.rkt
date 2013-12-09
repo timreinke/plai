@@ -89,6 +89,11 @@
       (appS (lamS 'x (plusS (numS 1) (idS 'x)))
             (numS 5)))
 
+;;; Let
+(test (parse '(let (x 2)
+                x))
+      (letS (idS 'x) (numS 2) (idS 'x)))
+
 
 (define (lift-op [op : (number number -> number)]) : (Value Value -> Value)
   (λ ([l : Value] [r : Value]) : Value
