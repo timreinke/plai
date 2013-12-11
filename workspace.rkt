@@ -136,6 +136,12 @@
     [lamS (a b) (lamC a (desugar b))]
     [letS (name value body) (idC name)]))
 
+;; Desugaring tests
+
+;;; letS
+(test (desugar (letS 'x (numS 5) (idS 'x)))
+      (appC (lamC 'x (idC 'x)) (numC 5)))
+
 (define (interp [a : ExprC] [env : Env] ) : Value
   (type-case ExprC a
     [numC (n) (numV n)]
