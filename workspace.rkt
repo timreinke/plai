@@ -6,6 +6,9 @@
 ;;; - think about error handling, maybe put it in a few places 
 ;;;;  - don't really want to go crazy as this is for learning
 
+
+;; section 7.4
+
 (define-type ExprC
   [idC (s : symbol)]
   [appC (fun : ExprC) (arg : ExprC)]
@@ -26,7 +29,8 @@
   [uminusS (e : ExprS)]
   [idS (id : symbol)]
   [appS (fun : ExprS) (expr : ExprS)]
-  [lamS (arg : symbol) (expr : ExprS)])
+  [lamS (arg : symbol) (expr : ExprS)]
+  [letS (name : ExprS) (value : ExprS) (body : ExprS)])
 
 (define-type Binding
   [bind (name : symbol) (val : Value)])
@@ -57,6 +61,11 @@
                        (bminusS (parse (second s1)) (parse (third s1))))]
                ['λ (lamS (s-exp->symbol (second s1))
                          (parse (third s1)))]
+               ['let (let ([binding (s-exp->list (second s1))]
+                           [body (third s1)])
+                       (letS (parse (first binding))
+                             (parse (second binding))
+                             (parse body)))]
                ;; TODO seems weird to need the same appS expression below.. how to refactor?
                [else (appS (parse (first s1))
                            (parse (second s1)))])
@@ -121,7 +130,8 @@
                         (desugar e))]
     [idS (id) (idC id)]
     [appS (f a) (appC (desugar f) (desugar a))]
-    [lamS (a b) (lamC a (desugar b))]))
+    [lamS (a b) (lamC a (desugar b))]
+    [letS (name value body) (idC (idS-id name))]))
 
 (define (interp [a : ExprC] [env : Env] ) : Value
   (type-case ExprC a
