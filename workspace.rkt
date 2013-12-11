@@ -30,7 +30,10 @@
   [idS (id : symbol)]
   [appS (fun : ExprS) (expr : ExprS)]
   [lamS (arg : symbol) (expr : ExprS)]
-  [letS (name : ExprS) (value : ExprS) (body : ExprS)])
+  ;; using a symbol here let's us catch a let syntax error at parse time
+  ;; you could allow an ExprS here, perhaps for a language-level destructuring
+  ;; bind. That may or may not be a good thing.
+  [letS (name : symbol) (value : ExprS) (body : ExprS)])
 
 (define-type Binding
   [bind (name : symbol) (val : Value)])
@@ -63,7 +66,7 @@
                          (parse (third s1)))]
                ['let (let ([binding (s-exp->list (second s1))]
                            [body (third s1)])
-                       (letS (parse (first binding))
+                       (letS (s-exp->symbol (first binding))
                              (parse (second binding))
                              (parse body)))]
                ;; TODO seems weird to need the same appS expression below.. how to refactor?
@@ -101,7 +104,7 @@
 ;;; Let
 (test (parse '(let (x 2)
                 x))
-      (letS (idS 'x) (numS 2) (idS 'x)))
+      (letS 'x (numS 2) (idS 'x)))
 
 
 (define (lift-op [op : (number number -> number)]) : (Value Value -> Value)
@@ -131,7 +134,7 @@
     [idS (id) (idC id)]
     [appS (f a) (appC (desugar f) (desugar a))]
     [lamS (a b) (lamC a (desugar b))]
-    [letS (name value body) (idC (idS-id name))]))
+    [letS (name value body) (idC name)]))
 
 (define (interp [a : ExprC] [env : Env] ) : Value
   (type-case ExprC a
